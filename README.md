@@ -258,6 +258,57 @@ All rolling statistics are computed from `target_ptf.shift(1)` before applying
 the window. This deliberately excludes the current hour's target and prevents
 target leakage into model inputs.
 
+## Baseline PTF Forecasting
+
+Baseline forecasts provide transparent benchmarks that future trained models
+must outperform. The current evaluation compares the previous-day price,
+previous-week price, trailing 24-hour mean, and trailing seven-day mean against
+the observed hourly PTF. Evaluation is date-based and never randomly shuffled.
+
+Run the default evaluation from 2024-01-01 through the latest feature timestamp:
+
+```bash
+docker compose exec api python scripts/run_baseline_ptf.py
+```
+
+Run a selected interval:
+
+```bash
+docker compose exec api python scripts/run_baseline_ptf.py \
+  --start-date 2024-01-01 \
+  --end-date 2026-07-09
+```
+
+The API operation is available as `POST /api/models/baseline/ptf/run` in
+FastAPI Swagger at <http://localhost:8000/docs>:
+
+```json
+{
+  "start_date": "2024-01-01",
+  "end_date": "2026-07-09"
+}
+```
+
+Inspect the latest evaluation:
+
+```bash
+curl http://localhost:8000/api/models/baseline/ptf/status
+```
+
+Inspect stored metrics directly:
+
+```bash
+docker compose exec db sh -c \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "SELECT model_name, mae, rmse, mape, smape, r2, count \
+      FROM baseline_metrics ORDER BY created_at DESC, model_name LIMIT 20;"'
+```
+
+Each successful evaluation is also logged to the
+`ptf_baseline_forecasting` MLflow experiment when MLflow is available. Database
+results remain valid if MLflow is temporarily unavailable. XGBoost will be
+implemented only after these benchmark results are established.
+
 ## MLflow database separation
 
 Application time-series tables and MLflow metadata use separate PostgreSQL

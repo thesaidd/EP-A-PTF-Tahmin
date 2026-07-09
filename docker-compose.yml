@@ -62,6 +62,8 @@ services:
         --dbname "$$POSTGRES_DB" --file /migrations/003_ptf_hourly_columns.sql
         && psql --set=ON_ERROR_STOP=1 --username "$$POSTGRES_USER"
         --dbname "$$POSTGRES_DB" --file /migrations/004_features_ptf_hourly.sql
+        && psql --set=ON_ERROR_STOP=1 --username "$$POSTGRES_USER"
+        --dbname "$$POSTGRES_DB" --file /migrations/005_baseline_forecasting.sql
     depends_on:
       db-init:
         condition: service_completed_successfully
