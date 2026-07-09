@@ -26,18 +26,20 @@ SELECT create_hypertable(
 );
 
 CREATE TABLE IF NOT EXISTS ptf_hourly (
-    delivery_time TIMESTAMPTZ NOT NULL,
-    price_try_mwh DOUBLE PRECISION NOT NULL,
-    price_eur_mwh DOUBLE PRECISION,
-    price_usd_mwh DOUBLE PRECISION,
-    source_updated_at TIMESTAMPTZ,
-    ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (delivery_time)
+    "timestamp" TIMESTAMPTZ NOT NULL,
+    ptf_tl NUMERIC NOT NULL,
+    ptf_usd NUMERIC,
+    ptf_eur NUMERIC,
+    source TEXT NOT NULL DEFAULT 'epias',
+    raw_record JSONB NOT NULL DEFAULT '{}'::JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY ("timestamp")
 );
 
 SELECT create_hypertable(
     'ptf_hourly',
-    'delivery_time',
+    'timestamp',
     if_not_exists => TRUE
 );
 

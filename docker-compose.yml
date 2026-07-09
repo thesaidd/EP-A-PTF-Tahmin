@@ -42,6 +42,28 @@ services:
       db:
         condition: service_healthy
 
+  app-db-migrate:
+    image: timescale/timescaledb:latest-pg16
+    restart: "no"
+    environment:
+      PGHOST: db
+      PGPASSWORD: ${POSTGRES_PASSWORD:-pepias}
+      POSTGRES_USER: ${POSTGRES_USER:-pepias}
+      POSTGRES_DB: ${POSTGRES_DB:-pepias}
+    volumes:
+      - ./app/db/migrations:/migrations:ro
+    command:
+      - sh
+      - -c
+      - >-
+        psql --set=ON_ERROR_STOP=1 --username "$$POSTGRES_USER"
+        --dbname "$$POSTGRES_DB" --file /migrations/002_raw_epias_response_columns.sql
+        && psql --set=ON_ERROR_STOP=1 --username "$$POSTGRES_USER"
+        --dbname "$$POSTGRES_DB" --file /migrations/003_ptf_hourly_columns.sql
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
   api:
     build:
       context: .
@@ -59,11 +81,12 @@ services:
       EPIAS_PASSWORD: ${EPIAS_PASSWORD:-}
       EPIAS_REQUEST_TIMEOUT: ${EPIAS_REQUEST_TIMEOUT:-30}
       EPIAS_MAX_RETRIES: ${EPIAS_MAX_RETRIES:-3}
+      EPIAS_PTF_ENDPOINT: ${EPIAS_PTF_ENDPOINT:-/electricity-service/v1/markets/dam/data/mcp}
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
-      db:
-        condition: service_healthy
+      app-db-migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:
         [

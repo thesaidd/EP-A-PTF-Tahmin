@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     epias_password: str | None = None
     epias_request_timeout: float = Field(default=30.0, gt=0)
     epias_max_retries: int = Field(default=3, ge=0, le=10)
+    epias_ptf_endpoint: str = "/electricity-service/v1/markets/dam/data/mcp"
 
     model_config = SettingsConfigDict(
         env_file=".env",

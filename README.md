@@ -97,6 +97,7 @@ Copy `.env.example` to `.env` and adjust values as needed.
 | `EPIAS_PASSWORD` | EPİAŞ account password | Empty |
 | `EPIAS_REQUEST_TIMEOUT` | HTTP timeout in seconds | `30` |
 | `EPIAS_MAX_RETRIES` | Retries after a failed HTTP attempt | `3` |
+| `EPIAS_PTF_ENDPOINT` | Configurable MCP/PTF endpoint path | `/electricity-service/v1/markets/dam/data/mcp` |
 
 Do not use the example credentials in a shared or production environment.
 
@@ -140,12 +141,69 @@ For an existing Docker database volume created before Sprint 2, apply the
 idempotent compatibility migration once:
 
 ```bash
-docker compose exec db psql -U pepias -d pepias \
-  -f /docker-entrypoint-initdb.d/002_raw_epias_response_columns.sql
+docker compose exec db sh -c \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -f /docker-entrypoint-initdb.d/002_raw_epias_response_columns.sql'
 ```
 
-Fresh database volumes run both initialization files automatically. Full
-historical PTF ingestion is intentionally deferred to Sprint 3.
+Fresh database volumes run the initialization files automatically.
+
+## PTF Historical Ingestion
+
+The PTF ingestion pipeline downloads hourly Day-Ahead Market Clearing Price
+data from EPİAŞ, stores every source response in `raw_epias_responses`, and
+upserts normalized prices into `ptf_hourly`. Re-running the same period updates
+existing timestamps instead of creating duplicates.
+
+Create a local `.env` file from `.env.example`, then add your own EPİAŞ login:
+
+```dotenv
+EPIAS_USERNAME=your-login-email@example.com
+EPIAS_PASSWORD=your-password
+```
+
+Never commit `.env`; it is already excluded by `.gitignore`. Real EPİAŞ
+credentials are required for ingestion because the MCP endpoint requires a TGT.
+The health and status endpoints do not require credentials.
+
+After rebuilding the services, check the current table status:
+
+```bash
+curl http://localhost:8000/api/epias/ptf/status
+```
+
+Run a small one-day ingestion from the API container:
+
+```bash
+docker compose exec api python scripts/ingest_ptf.py \
+  --start-date 2024-01-01 \
+  --end-date 2024-01-01
+```
+
+The same operation is available in FastAPI Swagger at
+<http://localhost:8000/docs> through `POST /api/epias/ptf/ingest`:
+
+```json
+{
+  "start_date": "2024-01-01",
+  "end_date": "2024-01-01",
+  "chunk_days": 30
+}
+```
+
+Verify the stored row count using the PostgreSQL user and database configured
+inside the Compose service:
+
+```bash
+docker compose exec db sh -c \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "SELECT COUNT(*) FROM ptf_hourly;"'
+```
+
+Long periods are split into bounded requests. Keep the default 30-day chunks
+unless EPİAŞ operational guidance requires a smaller window; multi-year ranges
+can make many requests and should be run from the CLI rather than an HTTP
+request.
 
 ## MLflow database separation
 

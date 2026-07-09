@@ -27,12 +27,14 @@ def test_config_loads_epias_environment(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setenv("EPIAS_BASE_URL", "https://custom.example")
     monkeypatch.setenv("EPIAS_REQUEST_TIMEOUT", "12")
     monkeypatch.setenv("EPIAS_MAX_RETRIES", "2")
+    monkeypatch.setenv("EPIAS_PTF_ENDPOINT", "/custom/mcp")
 
     config = Settings(_env_file=None)
 
     assert config.epias_base_url == "https://custom.example"
     assert config.epias_request_timeout == 12
     assert config.epias_max_retries == 2
+    assert config.epias_ptf_endpoint == "/custom/mcp"
 
 
 def test_client_initializes_without_credentials() -> None:
@@ -104,4 +106,3 @@ def test_post_retries_retryable_response() -> None:
     assert request_count == 2
     assert delays == [0.5]
     http_client.close()
-
