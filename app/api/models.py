@@ -5,6 +5,9 @@ from app.schemas.models import (
     BaselineEvaluationRequest,
     BaselineEvaluationSummary,
     BaselineStatusResponse,
+    ForecastDecisionRunRequest,
+    ForecastDecisionStatusResponse,
+    ForecastDecisionSummary,
     GprResidualStatusResponse,
     GprResidualTrainingRequest,
     GprResidualTrainingSummary,
@@ -13,6 +16,7 @@ from app.schemas.models import (
     XGBoostTrainingSummary,
 )
 from ml.models.baseline_ptf import BaselinePtfService
+from ml.models.forecast_decision_ptf import ForecastDecisionPtfService
 from ml.models.gpr_residual_ptf import GprResidualPtfService
 from ml.models.xgboost_ptf import XGBoostPtfService
 
@@ -29,6 +33,10 @@ def get_xgboost_ptf_service() -> XGBoostPtfService:
 
 def get_gpr_residual_ptf_service() -> GprResidualPtfService:
     return GprResidualPtfService()
+
+
+def get_forecast_decision_ptf_service() -> ForecastDecisionPtfService:
+    return ForecastDecisionPtfService()
 
 
 @router.post("/baseline/ptf/run", response_model=BaselineEvaluationSummary)
@@ -136,4 +144,45 @@ def gpr_residual_ptf_status(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not query GPR residual modeling status.",
+        ) from exc
+
+
+@router.post(
+    "/forecast-decision/ptf/run",
+    response_model=ForecastDecisionSummary,
+)
+def run_forecast_decision_ptf(
+    request: ForecastDecisionRunRequest,
+    service: ForecastDecisionPtfService = Depends(
+        get_forecast_decision_ptf_service
+    ),
+) -> ForecastDecisionSummary:
+    try:
+        summary = service.run_decision_layer(
+            gpr_run_id=request.gpr_run_id,
+            model_version=request.model_version,
+        )
+        return ForecastDecisionSummary.model_validate(summary)
+    except (SQLAlchemyError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/forecast-decision/ptf/status",
+    response_model=ForecastDecisionStatusResponse,
+)
+def forecast_decision_ptf_status(
+    service: ForecastDecisionPtfService = Depends(
+        get_forecast_decision_ptf_service
+    ),
+) -> ForecastDecisionStatusResponse:
+    try:
+        return ForecastDecisionStatusResponse.model_validate(service.get_status())
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not query forecast decision status.",
         ) from exc

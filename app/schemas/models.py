@@ -182,3 +182,43 @@ class GprResidualStatusResponse(BaseModel):
     latest_xgboost_comparison: dict[str, Any] | None
     latest_baseline_comparison: dict[str, Any] | None
     latest_artifact_path: str | None
+
+
+class ForecastDecisionRunRequest(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
+    gpr_run_id: str | None = None
+    model_version: str = "forecast_decision_v1"
+
+
+class ForecastDecisionSummary(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
+    decision_run_id: str
+    gpr_run_id: str
+    xgboost_training_run_id: str
+    model_version: str
+    selected_model: str
+    selection_reason: str
+    evaluation_start: str | None
+    evaluation_end: str | None
+    metrics: BaselineMetricValues | dict[str, Any]
+    uncertainty_metrics: UncertaintyMetricValues | dict[str, Any]
+    xgboost_comparison: dict[str, Any]
+    gpr_comparison: dict[str, Any]
+    warnings: list[str]
+    errors: list[str]
+
+
+class ForecastDecisionStatusResponse(BaseModel):
+    total_prediction_rows: int
+    total_metric_rows: int
+    latest_decision_run_id: str | None
+    latest_created_at: datetime | None
+    available_model_versions: list[str]
+    latest_selected_model: str | None
+    latest_selection_reason: str | None
+    latest_metrics: BaselineMetricValues | None
+    latest_uncertainty_metrics: UncertaintyMetricValues | None
+    latest_xgboost_comparison: dict[str, Any] | None
+    latest_gpr_comparison: dict[str, Any] | None

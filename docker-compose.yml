@@ -68,6 +68,8 @@ services:
         --dbname "$$POSTGRES_DB" --file /migrations/006_xgboost_forecasting.sql
         && psql --set=ON_ERROR_STOP=1 --username "$$POSTGRES_USER"
         --dbname "$$POSTGRES_DB" --file /migrations/007_gpr_residual_forecasting.sql
+        && psql --set=ON_ERROR_STOP=1 --username "$$POSTGRES_USER"
+        --dbname "$$POSTGRES_DB" --file /migrations/008_forecast_decision_layer.sql
     depends_on:
       db-init:
         condition: service_completed_successfully

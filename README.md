@@ -497,6 +497,91 @@ window. In early MVP runs, the uncertainty layer may improve interval/risk
 visibility without improving point MAE; the `xgboost_comparison` JSON makes this
 explicit.
 
+## Forecast Decision Layer
+
+The forecast decision layer turns model evaluation into product-safe forecast
+selection. It prevents the GPR residual correction from degrading the displayed
+point forecast while still preserving GPR uncertainty intervals and risk levels.
+
+The rule is intentionally simple:
+
+```text
+if GPR corrected MAE improves over XGBoost MAE on the same evaluation window:
+    selected_prediction = gpr_final_prediction
+    selected_model = "gpr_corrected"
+else:
+    selected_prediction = xgboost_prediction
+    selected_model = "xgboost"
+```
+
+Regardless of which point forecast is selected, the interval is centered around
+the selected point forecast using GPR uncertainty:
+
+```text
+lower_bound_95 = selected_prediction - 1.96 * residual_std
+upper_bound_95 = selected_prediction + 1.96 * residual_std
+```
+
+This means the current MVP can show XGBoost as the point forecast while still
+using GPR for uncertainty and `risk_level` when GPR correction does not improve
+accuracy.
+
+Run the decision layer from the CLI using the latest successful GPR run:
+
+```bash
+docker compose exec api python scripts/run_forecast_decision_ptf.py
+```
+
+Run for a specific GPR run:
+
+```bash
+docker compose exec api python scripts/run_forecast_decision_ptf.py \
+  --gpr-run-id <gpr-run-id> \
+  --model-version forecast_decision_v1
+```
+
+The API operation is available as
+`POST /api/models/forecast-decision/ptf/run` in FastAPI Swagger at
+<http://localhost:8000/docs>:
+
+```json
+{
+  "gpr_run_id": null,
+  "model_version": "forecast_decision_v1"
+}
+```
+
+Check decision-layer status:
+
+```bash
+curl http://localhost:8000/api/models/forecast-decision/ptf/status
+```
+
+Inspect stored decision metrics:
+
+```bash
+docker compose exec db sh -c \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "SELECT decision_run_id, selected_model, mae, rmse, r2, \
+             interval_coverage_95, xgboost_comparison, gpr_comparison \
+      FROM forecast_decision_metrics ORDER BY created_at DESC LIMIT 5;"'
+```
+
+Inspect sample selected predictions and intervals:
+
+```bash
+docker compose exec db sh -c \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "SELECT timestamp, selected_model, xgboost_prediction, \
+             gpr_corrected_prediction, selected_prediction, lower_bound_95, \
+             upper_bound_95, risk_level \
+      FROM forecast_decision_predictions \
+      ORDER BY created_at DESC, timestamp LIMIT 10;"'
+```
+
+For the current model findings, the expected selected point model is `xgboost`
+because GPR correction did not beat XGBoost on the same residual test window.
+
 ## MLflow database separation
 
 Application time-series tables and MLflow metadata use separate PostgreSQL
@@ -566,8 +651,9 @@ pytest
 3. Build leakage-safe hourly features and reproducible training datasets.
 4. Train and track an XGBoost point-forecasting model in MLflow.
 5. Model residual uncertainty with Gaussian Process Regression.
-6. Add production day-ahead forecast endpoints and model loading.
-7. Expand the dashboard with forecast curves, confidence intervals, and model
+6. Add a forecast decision layer for product-safe model selection.
+7. Add production day-ahead forecast endpoints and model loading.
+8. Expand the dashboard with forecast curves, confidence intervals, and model
    monitoring.
-8. Add CI, automated migrations, observability, secrets management, and
+9. Add CI, automated migrations, observability, secrets management, and
    production deployment configuration.
